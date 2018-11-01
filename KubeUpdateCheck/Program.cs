@@ -1,11 +1,10 @@
-﻿using System;
+﻿using Docker.Registry.DotNet;
+using Docker.Registry.DotNet.Models;
 using k8s;
 using k8s.Models;
-using Docker.Registry.DotNet;
-using Docker.Registry.DotNet.Models;
+using System;
 using System.Linq;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.JsonPatch;
 
 namespace KubeUpdateCheck
 {
@@ -21,52 +20,59 @@ namespace KubeUpdateCheck
 
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
 
-            var images = from deployment in deployments.Items
-                         from container in deployment.Spec.Template.Spec.Containers
-                         let decomposedImage = container.Image.Split(':')
-                         where decomposedImage[1] != "latest" && decomposedImage[0].IndexOf('.') == -1 && !decomposedImage[0].EndsWith("sha256")
-                         where deployment.Metadata.NamespaceProperty != "kube-system"
-                         let imageName = decomposedImage[0].Contains('/') ? decomposedImage[0] : "library/" + decomposedImage[0]
-                         let versionMatchString = deployment.Metadata.Annotations
-                         group new { Deployment = deployment, Container = container, Version = decomposedImage[1], VersionString = deployment.Metadata.Annotations }
-                         by imageName;
+            var stuff = from deployment in deployments.Items
+                        select new { deployment.Metadata.Name, deployment.Spec.Template.Spec.Containers };
 
-            IRegistryClient registryClient = new RegistryClientConfiguration(new Uri("https://registry-1.docker.io")).CreateClient();
+            var registries = from deployment in deployments.Items
+                             from container in deployment.Spec.Template.Spec.Containers
+                             where deployment.Metadata.NamespaceProperty != "kube-system"
+                             let decomposedImage = ImageReference.Parse(container.Image)
+                             where decomposedImage != null && decomposedImage.Version != "latest"
+                             let versionMatchString = deployment.Metadata.Annotations
+                             group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
+                             by decomposedImage.Registry;
 
             Regex versionParse = DEFAULT_VERSION_PARSE;
 
-            foreach (var image in images)
+            foreach (var registry in registries)
             {
-                CatalogParameters catalogParameters = new CatalogParameters();
-                ListImageTagsParameters tagsParameters = new ListImageTagsParameters
+                IRegistryClient registryClient = new RegistryClientConfiguration(new Uri(registry.Key)).CreateClient();
+                var images = from r in registry
+                             group r
+                             by r.Image;
+                foreach (var image in images)
                 {
-                    Number = 100
-                };
-                var result = registryClient.Tags.ListImageTagsAsync(image.Key, tagsParameters);
-                result.Wait();
-
-                foreach (var container in image)
-                {
-                    var matcher = ExtractMatchString(container.Deployment, container.Container.Name);
-                    var start = matcher.Match(container.Version);
-                    if (!start.Success)
+                    CatalogParameters catalogParameters = new CatalogParameters();
+                    ListImageTagsParameters tagsParameters = new ListImageTagsParameters
                     {
-                        continue;
-                    }
-                    var currentVersion = new Version(start.Groups[1].Value);
+                        Number = 100
+                    };
+                    var result = registryClient.Tags.ListImageTagsAsync(image.Key.ImageName, tagsParameters);
+                    result.Wait();
 
-                    var upgradeTarget = (from tag in result.Result.Tags
-                                         let parsed = matcher.Match(tag)
-                                         where parsed.Success
-                                         let candidate = new Version(parsed.Groups[1].Value)
-                                         where candidate > currentVersion
-                                         orderby candidate descending
-                                         select tag).FirstOrDefault();
-
-                    if (upgradeTarget != null)
+                    foreach (var container in image)
                     {
-                        Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Container.Image, upgradeTarget);
-                        container.Container.Image = upgradeTarget;
+                        var matcher = ExtractMatchString(container.Deployment, container.Container.Name);
+                        var start = matcher.Match(container.Image.Version);
+                        if (!start.Success)
+                        {
+                            continue;
+                        }
+                        var currentVersion = new Version(start.Groups[1].Value);
+
+                        var upgradeTarget = (from tag in result.Result.Tags
+                                             let parsed = matcher.Match(tag)
+                                             where parsed.Success
+                                             let candidate = new Version(parsed.Groups[1].Value)
+                                             where candidate > currentVersion
+                                             orderby candidate descending
+                                             select tag).FirstOrDefault();
+
+                        if (upgradeTarget != null)
+                        {
+                            Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
+                            container.Container.Image = upgradeTarget;
+                        }
                     }
                 }
             }
@@ -95,9 +101,7 @@ namespace KubeUpdateCheck
             if (annotations == null)
             {
                 return null;
-            }
-            else if (annotations.TryGetValue(name + "-" + containerName, out value))
-            {
+            } else if (annotations.TryGetValue(name + "-" + containerName, out value)) {
                 return value;
             } else if (annotations.TryGetValue(name, out value)) {
                 return value;
