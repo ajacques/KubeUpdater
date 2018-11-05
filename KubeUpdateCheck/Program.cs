@@ -10,8 +10,8 @@ namespace KubeUpdateCheck
 {
     class Program
     {
-        static string BASE_VERSION = @"(([0-9]+)\.([0-9]+)(?:\.([0-9]+))?)";
-        static Regex DEFAULT_VERSION_PARSE = new Regex(string.Format("^{0}$", BASE_VERSION), RegexOptions.Compiled);
+        private static readonly string BaseVersion = @"(([0-9]+)\.([0-9]+)(?:\.([0-9]+))?)";
+        private static readonly Regex DefaultVersionParse = new Regex(string.Format("^{0}$", BaseVersion), RegexOptions.Compiled);
 
         static void Main(string[] args)
         {
@@ -19,9 +19,6 @@ namespace KubeUpdateCheck
             IKubernetes kubernetes = new Kubernetes(config);
 
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
-
-            var stuff = from deployment in deployments.Items
-                        select new { deployment.Metadata.Name, deployment.Spec.Template.Spec.Containers };
 
             var registries = from deployment in deployments.Items
                              from container in deployment.Spec.Template.Spec.Containers
@@ -32,8 +29,6 @@ namespace KubeUpdateCheck
                              group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
                              by decomposedImage.Registry;
 
-            Regex versionParse = DEFAULT_VERSION_PARSE;
-
             foreach (var registry in registries)
             {
                 IRegistryClient registryClient = new RegistryClientConfiguration(new Uri(registry.Key)).CreateClient();
@@ -42,7 +37,6 @@ namespace KubeUpdateCheck
                              by r.Image;
                 foreach (var image in images)
                 {
-                    CatalogParameters catalogParameters = new CatalogParameters();
                     ListImageTagsParameters tagsParameters = new ListImageTagsParameters
                     {
                         Number = 100
@@ -76,8 +70,7 @@ namespace KubeUpdateCheck
                     }
                 }
             }
-
-            versionParse.ToString();
+            registries.ToString();
         }
 
         private static Regex ExtractMatchString(V1Deployment deployment, string containerName)
@@ -85,10 +78,10 @@ namespace KubeUpdateCheck
             string value = GetContainerAnnotationWithFallback(deployment, "version-match", containerName);
             if (value == null)
             {
-                return DEFAULT_VERSION_PARSE;
+                return DefaultVersionParse;
             }
 
-            string regex = string.Format("^{0}$", value.Replace("{version}", BASE_VERSION));
+            string regex = string.Format("^{0}$", value.Replace("{version}", BaseVersion));
 
             return new Regex(regex);
         }

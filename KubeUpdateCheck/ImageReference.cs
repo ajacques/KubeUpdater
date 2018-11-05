@@ -1,15 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 
 namespace KubeUpdateCheck
 {
-    class ImageReference
+    internal class ImageReference
     {
-        private static Regex versionMatch = new Regex(@"^(?:(?<image>[^/\n]+\/[^@/\n]+)|(?:(?<domain>[^/\n]+)\/)?(?<image>[^\n:@]+)):(?<version>.+)$");
+        private static readonly Regex VersionMatch = new Regex(@"^(?:(?<image>[^/\n]+\/[^@/\n]+)|(?:(?<domain>[^/\n]+)\/)?(?<image>[^\n:@]+)):(?<version>.+)$");
 
-        public ImageReference(string registry, string imageName, string version)
+        private ImageReference(string registry, string imageName, string version)
         {
             Registry = registry;
             ImageName = imageName;
@@ -27,7 +24,7 @@ namespace KubeUpdateCheck
 
         public static ImageReference Parse(string input)
         {
-            Match match = versionMatch.Match(input);
+            Match match = VersionMatch.Match(input);
             if (!match.Success)
             {
                 return null;
