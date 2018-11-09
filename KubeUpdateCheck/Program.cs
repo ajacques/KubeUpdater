@@ -5,6 +5,7 @@ using k8s.Models;
 using System;
 using System.Linq;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.JsonPatch;
 
 namespace KubeUpdateCheck
 {
@@ -15,7 +16,7 @@ namespace KubeUpdateCheck
 
         static void Main(string[] args)
         {
-            KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("../../../kubeconfig.yaml");
+            KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("kubeconfig.yaml");
             IKubernetes kubernetes = new Kubernetes(config);
 
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
@@ -27,11 +28,11 @@ namespace KubeUpdateCheck
                              where decomposedImage != null && decomposedImage.Version != "latest"
                              let versionMatchString = deployment.Metadata.Annotations
                              group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
-                             by decomposedImage.Registry;
+                             by decomposedImage.FullyQualifiedRegistry();
 
             foreach (var registry in registries)
             {
-                IRegistryClient registryClient = new RegistryClientConfiguration(new Uri(registry.Key)).CreateClient();
+                IRegistryClient registryClient = new RegistryClientConfiguration(registry.Key).CreateClient();
                 var images = from r in registry
                              group r
                              by r.Image;
@@ -65,7 +66,10 @@ namespace KubeUpdateCheck
                         if (upgradeTarget != null)
                         {
                             Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
-                            container.Container.Image = upgradeTarget;
+                            container.Container.Image = container.Image.WithVersion(upgradeTarget).ToString();
+                            
+                            var output = kubernetes.ReplaceNamespacedDeployment(container.Deployment, container.Deployment.Metadata.Name, container.Deployment.Metadata.NamespaceProperty);
+                            output.ToString();
                         }
                     }
                 }
