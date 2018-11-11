@@ -2,10 +2,12 @@
 using Docker.Registry.DotNet.Models;
 using k8s;
 using k8s.Models;
+using KubeUpdateCheck.Notifications;
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.JsonPatch;
 
 namespace KubeUpdateCheck
 {
@@ -30,9 +32,11 @@ namespace KubeUpdateCheck
                              group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
                              by decomposedImage.FullyQualifiedRegistry();
 
+            ICollection<ContainerToUpdate> containerUpdates = new List<ContainerToUpdate>();
+
             foreach (var registry in registries)
             {
-                IRegistryClient registryClient = new RegistryClientConfiguration(registry.Key).CreateClient();
+                IRegistryClient registryClient = new RegistryClientConfiguration(registry.Key, TimeSpan.FromMinutes(5)).CreateClient();
                 var images = from r in registry
                              group r
                              by r.Image;
@@ -66,15 +70,32 @@ namespace KubeUpdateCheck
                         if (upgradeTarget != null)
                         {
                             Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
-                            container.Container.Image = container.Image.WithVersion(upgradeTarget).ToString();
-                            
-                            var output = kubernetes.ReplaceNamespacedDeployment(container.Deployment, container.Deployment.Metadata.Name, container.Deployment.Metadata.NamespaceProperty);
-                            output.ToString();
+                            var toVersion = container.Image.WithVersion(upgradeTarget);
+                            container.Container.Image = toVersion.ToString();
+                            containerUpdates.Add(new ContainerToUpdate()
+                            {
+                                ContainerName = container.Container.Name,
+                                FromVersion = container.Image,
+                                ToVersion = toVersion
+                            });
+
+                            kubernetes.ReplaceNamespacedDeployment(container.Deployment, container.Deployment.Metadata.Name, container.Deployment.Metadata.NamespaceProperty);
                         }
                     }
                 }
             }
-            registries.ToString();
+            var mailConfig = EmailConfig.GetFromEnvironment();
+            if (containerUpdates.Count > 0 && mailConfig.ShouldSend)
+            {
+                MailMessage mailMessage = new MailMessage();
+                mailMessage.DeliveryNotificationOptions = DeliveryNotificationOptions.Never;
+                mailMessage.Body = new EmailNotificationBuilder().BuildMessage(containerUpdates);
+                mailMessage.Subject = string.Format("{0} containers updated", containerUpdates.Count);
+                mailMessage.To.Add(mailConfig.ToAddress);
+                mailMessage.From = mailConfig.FromAddress;
+                SmtpClient smtpClient = new SmtpClient(mailConfig.RelayHost, mailConfig.RelayPort);
+                smtpClient.Send(mailMessage);
+            }
         }
 
         private static Regex ExtractMatchString(V1Deployment deployment, string containerName)
