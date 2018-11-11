@@ -18,7 +18,7 @@ namespace KubeUpdateCheck
 
         static void Main(string[] args)
         {
-            KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("kubeconfig.yaml");
+            KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
             IKubernetes kubernetes = new Kubernetes(config);
 
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
