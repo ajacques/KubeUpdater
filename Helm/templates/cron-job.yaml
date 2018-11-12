@@ -1,0 +1,28 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ template "kube-update.fullname" . }}
+  labels:
+    app: {{ template "kube-update.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  jobTemplate:
+    metadata:
+      labels:
+        app: {{ template "kube-update.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: kube-update
+          image: "ajacques/kube-update:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+    serviceAccountName: kube-update-service-account
+  schedule:  {{ .Values.schedule }}
