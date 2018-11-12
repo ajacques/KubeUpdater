@@ -38,6 +38,15 @@ namespace KubeUpdateCheck.Notifications
         public static EmailConfig GetFromEnvironment()
         {
             var envVariables = Environment.GetEnvironmentVariables();
+            bool shouldSend = envVariables.Contains("APP_EMAIL_HOST");
+            if (!shouldSend)
+            {
+                return new EmailConfig()
+                {
+                    ShouldSend = false
+                };
+            }
+
             return new EmailConfig()
             {
                 ShouldSend = envVariables.Contains("APP_EMAIL_HOST"),

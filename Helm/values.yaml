@@ -5,3 +5,6 @@ image:
   tag: latest
   pullPolicy: IfNotPresent
 resources: {}
+
+email:
+  enabled: false

@@ -9,6 +9,7 @@ metadata:
     heritage: {{ .Release.Service }}
 spec:
   schedule:  {{ .Values.schedule }}
+  concurrencyPolicy: Replace
   jobTemplate:
     metadata:
       labels:
@@ -21,7 +22,17 @@ spec:
             - name: kube-update
               image: "ajacques/kube-update:{{ .Values.image.tag }}"
               imagePullPolicy: {{ .Values.image.pullPolicy }}
+              env:
+                {{- if .Values.email.enabled }}
+              - name: APP_EMAIL_HOST
+                value: {{ .Values.email.relay.host }}
+              - name: APP_EMAIL_PORT
+                value: "{{ .Values.email.relay.port }}"
+              - name: APP_EMAIL_TO
+                value: {{ .Values.email.recipient.address }}
+                {{- end }}
               resources:
+                {{ toYaml .Values.resources | indent 16 }}
           serviceAccountName: kube-update-service-account
           restartPolicy: Never
           schedulerName: default-scheduler
@@ -29,8 +40,7 @@ spec:
             capabilities:
               drop:
               - ALL
-          {{ toYaml .Values.resources | indent 12 }}
-              {{- if .Values.nodeSelector }}
-                nodeSelector:
+          {{- if .Values.nodeSelector }}
+            nodeSelector:
           {{ toYaml .Values.nodeSelector | indent 8 }}
-              {{- end }}
+          {{- end }}
