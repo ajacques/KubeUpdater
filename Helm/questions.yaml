@@ -4,7 +4,6 @@ questions:
   description: Cron job specification
   label: Cron Job Schedule
   type: string
-  show_subquestion_if: false
   group: Scheduling
 
 - variable: email.enabled
@@ -24,6 +23,7 @@ questions:
   - variable: email.relay.port
     description: Email relay port
     default: "587"
+    valid_chars: ^[0-9]{1,5}$
     type: string
     required: true
     label: Port
