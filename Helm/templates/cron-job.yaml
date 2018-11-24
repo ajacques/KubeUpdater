@@ -31,15 +31,15 @@ spec:
               - name: APP_EMAIL_TO
                 value: {{ .Values.email.recipient.address }}
                 {{- end }}
+			  securityContext:
+				capabilities:
+				  drop:
+				  - ALL
               resources:
                 {{ toYaml .Values.resources | indent 16 }}
           serviceAccountName: kube-update-service-account
           restartPolicy: Never
           schedulerName: default-scheduler
-          securityContext:
-            capabilities:
-              drop:
-              - ALL
           {{- if .Values.nodeSelector }}
             nodeSelector:
           {{ toYaml .Values.nodeSelector | indent 8 }}
