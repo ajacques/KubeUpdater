@@ -13,13 +13,14 @@ namespace KubeUpdateCheck
 
             try
             {
-                KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("kubeconfig.yaml");
+                KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
                 IKubernetes kubernetes = new Kubernetes(config);
 
                 UpgradeChecker checker = new UpgradeChecker(kubernetes);
                 checker.PerformUpdate();
             } catch (Exception e) {
                 SentrySdk.CaptureException(e);
+                throw e;
             } finally {
                 if (sentry != null)
                 {

@@ -3,7 +3,7 @@
 schedule: 5 0 * * 0 # Every sunday at 00:05 (Offset to avoid any thundering herd at midnight)
 image:
   tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 resources: {}
 
 email:
