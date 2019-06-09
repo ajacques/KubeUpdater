@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "KubeUpdateCheck": {
+      "commandName": "Project",
+      "workingDirectory": "C:\\Users\\adam\\source\\repos\\KubeUpdater\\KubeUpdateCheck"
+    }
+  }
+}

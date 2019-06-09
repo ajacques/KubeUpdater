@@ -51,7 +51,12 @@ namespace KubeUpdateCheck
                         Number = 100
                     };
                     var result = registryClient.Tags.ListImageTagsAsync(image.Key.ImageName, tagsParameters);
-                    result.Wait();
+                    try
+                    {
+                        result.Wait();
+                    } catch (AggregateException e) {
+                        throw new Exception(string.Format("Failed to list image tags for '{0}' at registry '{1}'.", image.Key.ImageName, image.Key.Registry), e.InnerException);
+                    }
 
                     foreach (var container in image)
                     {

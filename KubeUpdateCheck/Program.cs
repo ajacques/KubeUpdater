@@ -6,14 +6,13 @@ namespace KubeUpdateCheck
 {
     class Program
     {
-
         static void Main(string[] args)
         {
             IDisposable sentry = ConfigureErrorReporting();
 
             try
             {
-                KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
+                KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("./kubeconfig.yaml");
                 IKubernetes kubernetes = new Kubernetes(config);
 
                 UpgradeChecker checker = new UpgradeChecker(kubernetes);
