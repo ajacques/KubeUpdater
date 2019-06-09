@@ -12,8 +12,8 @@
 
   <ItemGroup>
     <PackageReference Include="Docker.Registry.DotNet" Version="1.0.10" />
-    <PackageReference Include="KubernetesClient" Version="1.2.0" />
-    <PackageReference Include="Sentry" Version="1.0.0" />
+    <PackageReference Include="KubernetesClient" Version="1.5.19" />
+    <PackageReference Include="Sentry" Version="1.2.0" />
   </ItemGroup>
 
 </Project>
