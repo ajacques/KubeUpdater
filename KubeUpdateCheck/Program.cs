@@ -12,7 +12,7 @@ namespace KubeUpdateCheck
 
             try
             {
-                KubernetesClientConfiguration config = KubernetesClientConfiguration.BuildConfigFromConfigFile("./kubeconfig.yaml");
+                KubernetesClientConfiguration config = KubernetesClientConfiguration.InClusterConfig();
                 IKubernetes kubernetes = new Kubernetes(config);
 
                 UpgradeChecker checker = new UpgradeChecker(kubernetes);
