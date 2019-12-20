@@ -31,7 +31,7 @@ namespace KubeUpdateCheck
                              from container in deployment.Spec.Template.Spec.Containers
                              where deployment.Metadata.NamespaceProperty != "kube-system"
                              let decomposedImage = ImageReference.Parse(container.Image)
-                             where decomposedImage != null && decomposedImage.Version != "latest"
+                             where decomposedImage != null && decomposedImage.Version != "latest" && !bool.Parse(GetContainerAnnotationWithFallback(deployment, "skip", "false"))
                              let versionMatchString = deployment.Metadata.Annotations
                              group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
                              by decomposedImage.FullyQualifiedRegistry();
