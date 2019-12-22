@@ -29,9 +29,8 @@ namespace KubeUpdateCheck
 
             var registries = from deployment in deployments.Items
                              from container in deployment.Spec.Template.Spec.Containers
-                             where deployment.Metadata.NamespaceProperty != "kube-system"
                              let decomposedImage = ImageReference.Parse(container.Image)
-                             where decomposedImage != null && decomposedImage.Version != "latest" && !bool.Parse(GetContainerAnnotationWithFallback(deployment, "skip", "false"))
+                             where ShouldProcess(deployment, decomposedImage)
                              let versionMatchString = deployment.Metadata.Annotations
                              group new { Deployment = deployment, Container = container, Image = decomposedImage, VersionString = deployment.Metadata.Annotations }
                              by decomposedImage.FullyQualifiedRegistry();
@@ -107,6 +106,17 @@ namespace KubeUpdateCheck
             }
         }
 
+        private bool ShouldProcess(V1Deployment deployment, ImageReference imageReference)
+        {
+            string shouldSkip = GetAnnotation(deployment, "skip");
+            bool skipValue = false;
+            return !(
+                deployment.Metadata.NamespaceProperty != "kube-system" ||
+                (imageReference != null && imageReference.Version != "latest") ||
+                (bool.TryParse(shouldSkip, out skipValue) && skipValue));
+                
+        }
+
         private Regex ExtractMatchString(V1Deployment deployment, string containerName)
         {
             string value = GetContainerAnnotationWithFallback(deployment, "version-match", containerName);
@@ -120,7 +130,7 @@ namespace KubeUpdateCheck
             return new Regex(regex);
         }
 
-        private string GetContainerAnnotationWithFallback(V1Deployment deployment, string settingName, string containerName)
+        private static string GetAnnotation(V1Deployment deployment, string settingName)
         {
             string name = string.Format("net.technowizardry.upgrade/{0}", settingName);
             string value;
@@ -129,18 +139,24 @@ namespace KubeUpdateCheck
             {
                 return null;
             }
-            else if (annotations.TryGetValue(name + "-" + containerName, out value))
-            {
-                return value;
-            }
             else if (annotations.TryGetValue(name, out value))
             {
                 return value;
             }
-            else
+
+            return null;
+        }
+
+        private string GetContainerAnnotationWithFallback(V1Deployment deployment, string settingName, string containerName)
+        {
+            string value = GetAnnotation(deployment, settingName + "-" + containerName);
+
+            if (value != null)
             {
-                return null;
+                return value;
             }
+
+            return GetAnnotation(deployment, settingName);
         }
     }
 }
