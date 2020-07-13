@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 
 namespace KubeUpdateCheck
 {
-    internal class ImageReference
+    public class ImageReference
     {
         private static readonly string DefaultRegistry = "registry-1.docker.io";
         private static readonly Regex VersionMatch = new Regex(@"^(?:(?<image>[^/\n]+\/[^@/\n]+)|(?:(?<domain>[^/\n]+)\/)?(?<image>[^\n:@]+)):(?<version>.+)$");

@@ -5,6 +5,7 @@ using k8s.Models;
 using KubeUpdateCheck.Notifications;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
@@ -27,6 +28,8 @@ namespace KubeUpdateCheck
         {
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
 
+            Trace.TraceInformation("{0} deployments to be checked.", deployments.Items.Count);
+
             var registries = from deployment in deployments.Items
                              from container in deployment.Spec.Template.Spec.Containers
                              let decomposedImage = ImageReference.Parse(container.Image)
@@ -36,6 +39,8 @@ namespace KubeUpdateCheck
                              by decomposedImage.FullyQualifiedRegistry();
 
             ICollection<ContainerToUpdate> containerUpdates = new List<ContainerToUpdate>();
+
+            Trace.TraceInformation("{0} deployments should be processed.", registries.Count());
 
             foreach (var registry in registries)
             {
@@ -77,7 +82,7 @@ namespace KubeUpdateCheck
 
                         if (upgradeTarget != null)
                         {
-                            Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
+                            Trace.TraceInformation("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
                             var toVersion = container.Image.WithVersion(upgradeTarget);
                             container.Container.Image = toVersion.ToString();
                             containerUpdates.Add(new ContainerToUpdate()
@@ -95,10 +100,12 @@ namespace KubeUpdateCheck
             var mailConfig = EmailConfig.GetFromEnvironment();
             if (containerUpdates.Count > 0 && mailConfig.ShouldSend)
             {
-                MailMessage mailMessage = new MailMessage();
-                mailMessage.DeliveryNotificationOptions = DeliveryNotificationOptions.Never;
-                mailMessage.Body = new EmailNotificationBuilder().BuildMessage(containerUpdates);
-                mailMessage.Subject = string.Format("{0} containers updated", containerUpdates.Count);
+                MailMessage mailMessage = new MailMessage
+                {
+                    DeliveryNotificationOptions = DeliveryNotificationOptions.Never,
+                    Body = new EmailNotificationBuilder().BuildMessage(containerUpdates),
+                    Subject = string.Format("{0} containers updated", containerUpdates.Count)
+                };
                 mailMessage.To.Add(mailConfig.ToAddress);
                 mailMessage.From = mailConfig.FromAddress;
                 SmtpClient smtpClient = new SmtpClient(mailConfig.RelayHost, mailConfig.RelayPort);
@@ -109,11 +116,12 @@ namespace KubeUpdateCheck
         private bool ShouldProcess(V1Deployment deployment, ImageReference imageReference)
         {
             string shouldSkip = GetAnnotation(deployment, "skip");
-            bool skipValue = false;
-            return !(
-                deployment.Metadata.NamespaceProperty != "kube-system" ||
-                (imageReference != null && imageReference.Version != "latest") ||
-                (bool.TryParse(shouldSkip, out skipValue) && skipValue));
+            bool skipValue;
+            bool hasSkipValue = bool.TryParse(shouldSkip, out skipValue);
+            return (
+                deployment.Metadata.NamespaceProperty != "kube-system" &&
+                (imageReference != null && imageReference.Version != "latest") &&
+                ((hasSkipValue && skipValue) || true));
                 
         }
 

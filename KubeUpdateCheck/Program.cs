@@ -1,6 +1,7 @@
 ﻿using k8s;
 using Sentry;
 using System;
+using System.Diagnostics;
 
 namespace KubeUpdateCheck
 {
@@ -18,6 +19,7 @@ namespace KubeUpdateCheck
                 UpgradeChecker checker = new UpgradeChecker(kubernetes);
                 checker.PerformUpdate();
             } catch (Exception e) {
+                Trace.TraceError("Encountered exception: {0}", e.Message);
                 SentrySdk.CaptureException(e);
                 throw e;
             } finally {
@@ -37,6 +39,7 @@ namespace KubeUpdateCheck
                 return null;
             }
 
+            Trace.TraceInformation("Sentry.io enabled.");
             return SentrySdk.Init(dsn);
         }
     }
