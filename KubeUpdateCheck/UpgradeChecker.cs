@@ -5,7 +5,6 @@ using k8s.Models;
 using KubeUpdateCheck.Notifications;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Net.Mail;
 using System.Text.RegularExpressions;
@@ -28,7 +27,7 @@ namespace KubeUpdateCheck
         {
             var deployments = kubernetes.ListDeploymentForAllNamespaces();
 
-            Trace.TraceInformation("{0} deployments to be checked.", deployments.Items.Count);
+            Console.WriteLine("{0} deployments to be checked.", deployments.Items.Count);
 
             var registries = from deployment in deployments.Items
                              from container in deployment.Spec.Template.Spec.Containers
@@ -40,7 +39,7 @@ namespace KubeUpdateCheck
 
             ICollection<ContainerToUpdate> containerUpdates = new List<ContainerToUpdate>();
 
-            Trace.TraceInformation("{0} deployments should be processed.", registries.Count());
+            Console.WriteLine("{0} deployments should be processed.", registries.Count());
 
             foreach (var registry in registries)
             {
@@ -82,7 +81,7 @@ namespace KubeUpdateCheck
 
                         if (upgradeTarget != null)
                         {
-                            Trace.TraceInformation("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
+                            Console.WriteLine("Upgrade deployment {0} container {1} from version {2} to {3}.", container.Deployment.Metadata.Name, container.Container.Name, container.Image.Version, upgradeTarget);
                             var toVersion = container.Image.WithVersion(upgradeTarget);
                             container.Container.Image = toVersion.ToString();
                             containerUpdates.Add(new ContainerToUpdate()
@@ -118,10 +117,13 @@ namespace KubeUpdateCheck
             string shouldSkip = GetAnnotation(deployment, "skip");
             bool skipValue;
             bool hasSkipValue = bool.TryParse(shouldSkip, out skipValue);
+            if (hasSkipValue && skipValue)
+            {
+                return false;
+            }
             return (
                 deployment.Metadata.NamespaceProperty != "kube-system" &&
-                (imageReference != null && imageReference.Version != "latest") &&
-                ((hasSkipValue && skipValue) || true));
+                (imageReference != null && imageReference.Version != "latest"));
                 
         }
 
